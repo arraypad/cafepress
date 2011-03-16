@@ -44,7 +44,13 @@ class CafepressClient(object):
                 url += '?' + urllib.urlencode(params)
 
         request = urllib2.Request(url, datagen, headers)
-        content = urllib2.urlopen(request).read()
+
+        try:
+          content = urllib2.urlopen(request).read()
+        except urllib2.HTTPError, error:
+          content = error.read()
+          #print content
+          raise
 
         # todo: check resp error code (if useToken then try another token)
         if debug:
@@ -60,15 +66,19 @@ class CafepressClient(object):
 
     def uploadImage(self, imagePath):
         params = {'cpFile1': open(imagePath, 'rb'), 'folder': 'Images'}
-        content = self.call('image.upload', params, useToken = True, method = 'POST', hasFiles = True)
+        content = self.call('image.upload', params, useToken=True, method='POST', hasFiles=True, debug=False)
         designId = content.findtext('value')
         return designId
         
-    def createDesign(self, svg):
+    def createDesign(self, svg, width=None, height=None):
         # todo: look into poster.streaminghttp to stream uploaded svgs directly
-        content = self.call('design.save', params = {'value': '<?xml version="1.0"?><design />', 'svg': svg}, useToken = True, method = 'POST')
+        design = '<design'
+        if width != None:
+            design += ' width="' + str(width) + '" height="' + str(height) + '"'
+        design += ' />'
+        content = self.call('design.save', params = {'value': '<?xml version="1.0"?>' + design, 'svg': svg}, useToken = True, method = 'POST', debug=False)
         designId = content.attrib['id']
-        return designId
+        return designId, content.attrib['mediaUrl']
     
     def createProduct(self, merchandiseId, name, media, perspectiveName = 'Front', colors = []):
         product = '<?xml version="1.0"?><product name="' + name.replace('"', '&quot;') + '" merchandiseId="' + str(merchandiseId) + '" storeId="' + self.storeId + '">'
@@ -86,7 +96,7 @@ class CafepressClient(object):
               defaultColor = color
 
         product += '</product>'
-        content = self.call('product.save', params = {'value': product}, useToken = True, debug=False)
+        content = self.call('product.save', params = {'value': product}, useToken = True, debug=False, method='POST')
 
         product = {
             'cafepressId': content.attrib['id'],
