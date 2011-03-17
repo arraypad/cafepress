@@ -49,7 +49,9 @@ class CafepressClient(object):
           content = urllib2.urlopen(request).read()
         except urllib2.HTTPError, error:
           content = error.read()
-          #print content
+          print url
+          pprint.pprint(params)
+          print content
           raise
 
         # todo: check resp error code (if useToken then try another token)
@@ -80,7 +82,7 @@ class CafepressClient(object):
         designId = content.attrib['id']
         return designId, content.attrib['mediaUrl']
     
-    def createProduct(self, merchandiseId, name, media, perspectiveName = 'Front', colors = []):
+    def createProduct(self, merchandiseId, name, media, perspectiveNames=None, colors=None):
         product = '<?xml version="1.0"?><product name="' + name.replace('"', '&quot;') + '" merchandiseId="' + str(merchandiseId) + '" storeId="' + self.storeId + '">'
         for designId, mediaRegion in media:
             product += '<mediaConfiguration dpi="' + str(mediaRegion.dpi) + '" name="' + mediaRegion.name + '" designId="' + str(designId) + '" />'
@@ -101,20 +103,41 @@ class CafepressClient(object):
         product = {
             'cafepressId': content.attrib['id'],
             'storeUri': content.attrib['storeUri'],
-            'name': name
+            'name': name,
+            'images': {},
         }
 
+        if perspectiveNames == None:
+          perspectiveNames = ['Front']
+
         for image in content.getiterator('productImage'):
-            if image.attrib['perspectiveName'] == perspectiveName and (defaultColor is None or image.attrib['colorId'] == str(defaultColor)):
-                product['image'] = image.attrib['productUrl'];
-                break
+            if image.attrib['imageSize'] == settings.CAFEPRESS_PRODUCT_IMAGE_SIZE and \
+                    image.attrib['perspectiveName'] in perspectiveNames and \
+                    (defaultColor is None or image.attrib['colorId'] == str(defaultColor)):
+                product['images'][image.attrib['perspectiveName']] = image.attrib['productUrl'];
 
         return product
 
-    def updateMerchandise(self, merchandise):
-      content = self.call('merchandise.find', params = {'id': merchandise.cafepressId, 'userId': 1}, useToken = True)
+    def importAllMerchandise(self):
+      content = self.call('merchandise.list', params = {}, useToken = True)
+
+      for merchandiseContent in content.getiterator('merchandise'):
+        try:
+          merchandise = Merchandise.objects.get(cafepressId=merchandiseContent.attrib['id'])
+        except Merchandise.DoesNotExist:
+          merchandise = Merchandise()
+          merchandise.cafepressId = merchandiseContent.attrib['id']
+          merchandise.sellPrice = merchandiseContent.attrib['sellPrice'] if merchandiseContent.attrib['sellPrice'] != 'N/A' else 0
+          merchandise.save()
+        
+        self.updateMerchandise(merchandise, merchandiseContent)
+
+    def updateMerchandise(self, merchandise, content=None):
+      if content == None:
+        content = self.call('merchandise.find', params = {'id': merchandise.cafepressId, 'userId': 1}, useToken = True)
 
       # base attributes
+      merchandise.name = content.attrib['name']
       merchandise.basePrice = content.attrib['basePrice']
       merchandise.wildcardBlankProductUrl = content.attrib['wildcardBlankProductUrl']
 
@@ -152,6 +175,24 @@ class CafepressClient(object):
         color.save()
       for id, color in existingRegions:
         color.delete()
+
+      # Perspectives
+      existingPerspectives = dict([(str(perspective.name), perspective) for perspective in merchandise.perspective_set.all()])
+      for newPerspective in content.getiterator('perspective'):
+        if newPerspective.attrib['name'] in existingPerspectives:
+          perspective = existingPerspectives[newPerspective.attrib['name']]
+          del existingPerspectives[newPerspective.attrib['name']]
+        else:
+          perspective = Perspective()
+          perspective.merchandise = merchandise
+          perspective.name = newPerspective.attrib['name']
+        perspective.label = newPerspective.attrib['label']
+        perspective.isEditable = newPerspective.attrib['isEditable'] == 'true'
+        perspective.width = newPerspective.attrib['pixelWidth']
+        perspective.height = newPerspective.attrib['pixelHeight']
+        perspective.save()
+      for id, perspective in existingRegions:
+        perspective.delete()
 
       merchandise.save()
       return merchandise
