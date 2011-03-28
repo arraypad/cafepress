@@ -19,7 +19,7 @@ class CafepressClient(object):
         self.userToken = None
         self.http = httplib2.Http()
 
-    def call(self, action, params = {}, useAppKey = True, useToken = False, method = 'GET', debug=False, hasFiles = False):
+    def call(self, action, params = {}, useAppKey = True, useToken = False, method = 'GET', debug=False, hasFiles = False, retries=5):
         url = self.uploadBase if hasFiles else self.apiBase
         url += action + '.cp'
         params['v'] = self.apiVersion
@@ -47,11 +47,14 @@ class CafepressClient(object):
 
         try:
           content = urllib2.urlopen(request).read()
-        except urllib2.HTTPError, error:
-          content = error.read()
-          print url
-          pprint.pprint(params)
-          print content
+        except (urllib2.HTTPError, urllib2.URLError), error:
+          #content = error.read()
+          #print url
+          #pprint.pprint(params)
+          #print content
+          if retries:
+            return self.call(action, params, useAppKey, useToken, method, debug, hasFiles, retries - 1)
+
           raise
 
         # todo: check resp error code (if useToken then try another token)
