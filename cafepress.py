@@ -48,12 +48,14 @@ class CafepressClient(object):
         try:
           content = urllib2.urlopen(request).read()
         except (urllib2.HTTPError, urllib2.URLError), error:
-          #content = error.read()
-          #print url
-          #pprint.pprint(params)
-          #print content
           if retries:
             return self.call(action, params, useAppKey, useToken, method, debug, hasFiles, retries - 1)
+
+          if isinstance(error, urllib2.HTTPError):
+            content = error.read()
+            print url
+            pprint.pprint(params)
+            print content
 
           raise
 
