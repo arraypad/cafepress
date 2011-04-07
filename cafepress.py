@@ -87,7 +87,7 @@ class CafepressClient(object):
         designId = content.attrib['id']
         return designId, content.attrib['mediaUrl']
     
-    def createProduct(self, merchandiseId, name, media, perspectiveNames=None, colors=None):
+    def createProduct(self, merchandiseId, name, media, perspectiveNames=None, colors=None, imageSize=None):
         product = '<?xml version="1.0"?><product name="' + name.replace('"', '&quot;') + '" merchandiseId="' + str(merchandiseId) + '" storeId="' + self.storeId + '">'
         for designId, mediaRegion in media:
             product += '<mediaConfiguration dpi="' + str(mediaRegion.dpi) + '" name="' + mediaRegion.name + '" designId="' + str(designId) + '" />'
@@ -115,8 +115,11 @@ class CafepressClient(object):
         if perspectiveNames == None:
           perspectiveNames = ['Front']
 
+        if imageSize == None:
+          imageSize = settings.CAFEPRESS_PRODUCT_IMAGE_SIZE
+
         for image in content.getiterator('productImage'):
-            if image.attrib['imageSize'] == settings.CAFEPRESS_PRODUCT_IMAGE_SIZE and \
+            if image.attrib['imageSize'] == imageSize and \
                     image.attrib['perspectiveName'] in perspectiveNames and \
                     (defaultColor is None or image.attrib['colorId'] == str(defaultColor)):
                 product['images'][image.attrib['perspectiveName']] = image.attrib['productUrl'];
@@ -200,5 +203,22 @@ class CafepressClient(object):
         perspective.delete()
 
       merchandise.save()
+
+      # Images
+      colors = [[color.cafepressId, False] for color in merchandise.color_set.all()]
+      cafepressProduct = self.createProduct(merchandise.cafepressId,
+        name='Blank product',
+        media=[],
+        perspectiveNames=None,
+        colors=colors,
+        imageSize='48'
+      )
+
+      for perspective in cafepressProduct['images']:
+        if perspective == 'Front':
+          merchandise.smallImage = cafepressProduct['images'][perspective]
+          merchandise.save()
+          break
+
       return merchandise
 
