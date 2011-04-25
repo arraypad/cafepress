@@ -90,9 +90,9 @@ class CafepressClient(object):
     def createProduct(self, merchandiseId, name, media, perspectiveNames=None, colors=None, imageSize=None, sellPrice=None):
         product = str('<?xml version="1.0" encoding="UTF-8"?>')
         product += '<product name="' + name.replace('"', '&quot;') + '" merchandiseId="' + str(merchandiseId) + '" storeId="' + self.storeId + '"'
-		if sellPrice != None:
-			product += ' sellPrice="' + str(sellPrice) + '"'
-		product += '>'
+        if sellPrice != None:
+          product += ' sellPrice="' + str(sellPrice) + '"'
+        product += '>'
         for designId, mediaRegion in media:
             product += '<mediaConfiguration dpi="' + str(mediaRegion.dpi) + '" name="' + str(mediaRegion.name) + '" designId="' + str(designId) + '" />'
 
