@@ -5,7 +5,7 @@ setup(
     py_modules = ['cafepress'],
     scripts = [],
 
-    install_requires = ['httplib2==0.6.0', 'elementtree==1.2.7-20070827-preview', 'urllib3==0.3.1'],
+    install_requires = ['httplib2==0.19.0', 'elementtree==1.2.7-20070827-preview', 'urllib3==0.3.1'],
 
     package_data = {
     },
